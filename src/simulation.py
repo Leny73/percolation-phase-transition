@@ -164,3 +164,36 @@ def run_simulation(L: int, p: float, seed: int = 42, inc: int = 1):
     labeled, num_clusters = label_clusters(grid)
     L1, L2 = get_l1_l2(labeled, num_clusters)
     return L1, L2, grid, labeled
+
+
+def analyze_percolation(grid: np.ndarray):
+    """
+    Label clusters in *grid* and return normalised L1 and L2.
+
+    This is a convenience wrapper around :func:`label_clusters`,
+    :func:`cluster_sizes`, and :func:`get_l1_l2` that returns sizes
+    normalised by the total number of lattice sites — matching the
+    standard definition of the order parameter and susceptibility proxy
+    used in finite-size scaling analyses.
+
+    Parameters
+    ----------
+    grid : numpy.ndarray, shape (L, L), dtype uint8
+        Binary occupancy grid as returned by :func:`generate_grid`.
+
+    Returns
+    -------
+    l1 : float
+        Normalised size of the largest cluster, ``L1 / grid.size``.
+        Returns 0.0 when there are no clusters.
+    l2 : float
+        Normalised size of the second-largest cluster, ``L2 / grid.size``.
+        Returns 0.0 when there are fewer than two clusters.
+    """
+    labeled, num_clusters = label_clusters(grid)
+    if num_clusters == 0:
+        return 0.0, 0.0
+    sizes = cluster_sizes(labeled, num_clusters)
+    l1 = float(sizes[0]) / grid.size
+    l2 = float(sizes[1]) / grid.size if len(sizes) >= 2 else 0.0
+    return l1, l2

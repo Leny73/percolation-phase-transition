@@ -128,3 +128,22 @@ def pcg32_fill_float(n, seed, inc):
     for i in range(n):
         state, out[i] = pcg32_float(state, inc)
     return out
+
+
+def statistical_test() -> bool:
+    """
+    Simple statistical quality check for the PCG32 RNG.
+
+    Generates 100 000 uniform floats and verifies that the sample mean
+    lies in the expected range ``(0.49, 0.51)`` — a necessary (though not
+    sufficient) condition for a well-behaved uniform distribution.
+
+    Returns
+    -------
+    bool
+        ``True`` if the mean is within ``(0.49, 0.51)``, ``False`` otherwise.
+    """
+    samples = pcg32_fill_float(100_000, np.uint64(42), np.uint64(54))
+    mean = float(np.mean(samples))
+    print(f"RNG Statistical Mean: {mean:.5f} (Target: 0.5)")
+    return 0.49 < mean < 0.51
