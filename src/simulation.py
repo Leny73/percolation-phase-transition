@@ -24,10 +24,44 @@ from scipy.ndimage import label
 from .rng_engine import pcg32_seed, pcg32_float
 
 
-# 4-connectivity structure for ``scipy.ndimage.label``
+# We use 4-connectivity (von Neumann neighbourhood) rather than 8-connectivity
+# (Moore neighbourhood) because 2D site percolation on the square lattice is
+# defined with nearest-neighbour bonds only.  Diagonal connections would alter
+# the universality class and yield a wrong percolation threshold.
 _CONNECTIVITY_4 = np.array([[0, 1, 0],
                              [1, 1, 1],
                              [0, 1, 0]], dtype=np.int32)
+
+
+def validate_percolation_params(L: int, p: float) -> None:
+    """
+    Validate the lattice size *L* and occupation probability *p*.
+
+    Why validate early: generating and JIT-compiling a large grid only to
+    discover an invalid parameter deep in the pipeline is expensive and
+    produces a cryptic error.  Raising here gives an immediate, descriptive
+    message before any computation starts.
+
+    Parameters
+    ----------
+    L : int
+        Linear size of the square lattice.  Must be a positive integer.
+    p : float
+        Site occupation probability.  Must satisfy ``0 ≤ p ≤ 1``.
+
+    Raises
+    ------
+    ValueError
+        If ``L <= 0`` or ``p`` is outside ``[0, 1]``.
+    """
+    if L <= 0:
+        raise ValueError(
+            f"Lattice size L must be a positive integer, got {L!r}."
+        )
+    if not (0.0 <= p <= 1.0):
+        raise ValueError(
+            f"Occupation probability p must be in [0, 1], got {p!r}."
+        )
 
 
 @njit(cache=True)
@@ -55,6 +89,9 @@ def generate_grid(L, p, seed, inc):
         Binary occupancy grid.
     """
     state, inc = pcg32_seed(seed, inc)
+    # Why uint8: each lattice site holds only 0 or 1, so uint8 (1 byte)
+    # uses 8× less memory than float64 (8 bytes).  For an L=1000 lattice
+    # this saves ~7 MB and keeps the whole array in L3 cache.
     grid = np.empty((L, L), dtype=np.uint8)
     for i in range(L):
         for j in range(L):
@@ -160,6 +197,10 @@ def run_simulation(L: int, p: float, seed: int = 42, inc: int = 1):
     labeled : numpy.ndarray, shape (L, L)
         The labelled cluster array.
     """
+    # Why validate here rather than inside @njit generate_grid: validating
+    # in pure Python before entering Numba's JIT provides clearer error
+    # messages and avoids unnecessary compilation overhead for invalid inputs.
+    validate_percolation_params(L, p)
     grid = generate_grid(L, p, np.uint64(seed), np.uint64(inc))
     labeled, num_clusters = label_clusters(grid)
     L1, L2 = get_l1_l2(labeled, num_clusters)

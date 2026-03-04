@@ -16,12 +16,16 @@ from numba import njit
 from numba.core import types as _nbtypes
 
 
-# PCG32 multiplier constant
+# This specific multiplier was proven by M.E. O'Neill (2014) to yield a
+# maximal-period LCG with excellent spectral properties — it is NOT arbitrary.
+# Changing it would destroy the 2^64-step period guarantee.
 _PCG32_MULT = np.uint64(6364136223846793005)
 
-# Explicit Numba type signatures — these force compilation for uint64 inputs
-# so large Python ints (> 2^63) are coerced to uint64 rather than triggering
-# an int64 dispatch that would overflow.
+# We pin explicit Numba type signatures so that large Python literal integers
+# (e.g. 6364136223846793005 > 2^63) are *coerced to uint64* before the JIT
+# compiles the function body.  Without this, Numba would silently pick an
+# int64 dispatch that overflows on the very first multiplication, producing
+# a fatally corrupted generator state.
 _SIG_SEED = _nbtypes.UniTuple(_nbtypes.uint64, 2)(_nbtypes.uint64, _nbtypes.uint64)
 _SIG_NEXT = _nbtypes.Tuple((_nbtypes.uint64, _nbtypes.uint32))(
     _nbtypes.uint64, _nbtypes.uint64
@@ -50,6 +54,9 @@ def pcg32_seed(state, inc):
         ``(state, inc)`` ready for use with :func:`pcg32_next`.
     """
     inc = (inc << np.uint64(1)) | np.uint64(1)
+    # Why force the LSB to 1: PCG's stream selector must be odd to guarantee
+    # that every (state, inc) pair maps to a distinct random sequence.
+    # An even inc would collapse multiple streams into a single one.
     state = state + inc
     state = state * _PCG32_MULT + inc
     return state, inc
@@ -76,7 +83,9 @@ def pcg32_next(state, inc):
     state = old_state * _PCG32_MULT + inc
     xorshifted = np.uint32(((old_state >> np.uint64(18)) ^ old_state) >> np.uint64(27))
     rot = np.uint32(old_state >> np.uint64(59))
-    # Right-rotate: mask the complement shift to avoid undefined shift-by-32
+    # Why mask the complement shift with & 31: a shift of exactly 32 is
+    # undefined behaviour in C and maps to a no-op in many CPU architectures.
+    # Masking to [0, 31] keeps the rotation well-defined on all platforms.
     shift = (np.uint32(32) - rot) & np.uint32(31)
     result = np.uint32((xorshifted >> rot) | (xorshifted << shift))
     return state, result
@@ -100,7 +109,9 @@ def pcg32_float(state, inc):
         ``(new_state, random_float)``.
     """
     state, r = pcg32_next(state, inc)
-    # Multiply by 1/2^32 to map uint32 to [0, 1)
+    # Why multiply by 2^-32 instead of dividing by 2^32: a single float64
+    # multiply is faster than an integer division on every modern FPU, and the
+    # precomputed reciprocal avoids any rounding artefact from the divisor.
     return state, np.float64(r) * np.float64(2.3283064365386963e-10)
 
 

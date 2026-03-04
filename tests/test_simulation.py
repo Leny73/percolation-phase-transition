@@ -11,6 +11,7 @@ from src.simulation import (
     cluster_sizes,
     get_l1_l2,
     run_simulation,
+    validate_percolation_params,
 )
 
 
@@ -171,3 +172,32 @@ class TestRunSimulation:
         assert r1[0] == r2[0]
         assert r1[1] == r2[1]
         np.testing.assert_array_equal(r1[2], r2[2])
+
+
+class TestValidatePercolationParams:
+    def test_valid_params_no_exception(self):
+        validate_percolation_params(10, 0.5)  # must not raise
+
+    def test_zero_L_raises(self):
+        with pytest.raises(ValueError, match="Lattice size"):
+            validate_percolation_params(0, 0.5)
+
+    def test_negative_L_raises(self):
+        with pytest.raises(ValueError, match="Lattice size"):
+            validate_percolation_params(-5, 0.5)
+
+    def test_p_negative_raises(self):
+        with pytest.raises(ValueError, match="probability"):
+            validate_percolation_params(10, -0.1)
+
+    def test_p_above_one_raises(self):
+        with pytest.raises(ValueError, match="probability"):
+            validate_percolation_params(10, 1.1)
+
+    def test_boundary_values_no_exception(self):
+        validate_percolation_params(1, 0.0)
+        validate_percolation_params(1, 1.0)
+
+    def test_run_simulation_propagates_validation(self):
+        with pytest.raises(ValueError):
+            run_simulation(10, 1.5)
