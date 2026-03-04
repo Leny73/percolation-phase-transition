@@ -20,9 +20,19 @@ theoretical scaling laws and fractal geometry.
   class-based implementation with `clock_seed()` (SplitMix64 mixing) is also provided for
   portability.
 * **Modular Design:** Professional software architecture with clear separation between simulation
-  logic, RNG engines, and statistical analysis modules.
-* **Quality Assurance:** Includes automated unit tests for RNG uniformity and grid boundary
-  conditions.
+  logic, RNG engines, theory, and statistical analysis modules.
+* **Input Validation:** Early edge-case checking via `validate_percolation_params` provides
+  descriptive errors before any expensive computation begins.
+* **Theory Module (`theory.py`):** Estimates the fractal dimension $d_f$ from finite-size
+  simulation data via log-log linear regression and compares against the exact RG value
+  $d_f = 91/48 \approx 1.8958$.
+* **Validation Module (`validation.py`):** Extracts the correlation-length exponent $\nu$ via
+  finite-size scaling of the susceptibility proxy and benchmarks it against the exact RG prediction
+  $\nu = 4/3$.
+* **Power-Law Visualisation:** `main.py` generates a log-log cluster-size distribution plot at
+  $p_c$ and fits the Fisher exponent $\tau = 187/91 \approx 2.055$.
+* **Quality Assurance:** Includes automated unit tests for RNG uniformity, grid boundary
+  conditions, fractal-dimension estimation, and critical-exponent validation.
 
 ## 3. Scientific Methodology & Indicators
 
@@ -32,7 +42,7 @@ The simulation tracks the order parameter $L_1$ (normalized size of the largest 
 susceptibility proxy $L_2$ (second-largest cluster size).
 
 * **Critical Threshold ($p_c$):** For a 2D square lattice, the theoretical threshold is
-  $p_c \approx 0.5927$.
+  $p_c \approx 0.5927$ (best estimate: $p_c = 0.59274605$, Ziff 2021).
 * **Finite-Size Scaling:** Experiments are conducted across multiple lattice sizes
   $L \in \{100, 200, 400\}$ to extrapolate thermodynamic behaviour.
 
@@ -45,13 +55,36 @@ $$M(L) \propto L^{d_f}$$
 
 The expected theoretical value for 2D percolation is $d_f = 91/48 \approx 1.896$.
 
+### Correlation-Length Exponent ($\nu$)
+
+The module `validation.py` estimates $\nu$ via finite-size scaling of the susceptibility proxy at
+$p_c$:
+
+$$\langle L_2 \rangle(p_c, L) \sim L^{\gamma/\nu}, \quad \gamma/\nu = 43/24 \approx 1.792$$
+
+Fitting $\log\langle L_2\rangle$ vs $\log L$ yields $\gamma/\nu$, from which
+$\nu = \gamma / (\gamma/\nu)$ is inferred ($\gamma = 43/18$, exact RG).  The theoretical value is
+$\nu = 4/3$.
+
+### Cluster-Size Distribution ($\tau$)
+
+At the critical point the number density of clusters of size $s$ follows a power law:
+
+$$n(s) \sim s^{-\tau}, \quad \tau = 187/91 \approx 2.055$$
+
+`main.py` generates a log-log histogram of $n(s)$ at $p_c$ and fits the slope, providing the
+strongest visual evidence that the simulation sits exactly at the phase transition.
+
 ## 4. Project Structure
 
 ```text
+├── main.py                     # Entry point: phase-transition plot & power-law viz
 ├── src/                        # Core implementation logic
 │   ├── rng_engine.py           # PCG32 JIT-optimised with Numba (@njit)
 │   ├── pcg32_personal.py       # Pure-Python PCG32 class + clock_seed()
-│   └── simulation.py           # Grid generation, cluster labelling & L1/L2
+│   ├── simulation.py           # Grid generation, cluster labelling & L1/L2
+│   ├── theory.py               # Fractal-dimension estimation via log-log regression
+│   └── validation.py           # Critical-exponent (ν) validation via FSS
 ├── notebooks/                  # Colab/Jupyter research & visualisation
 ├── tests/                      # Automated unit tests
 ├── README.md                   # Documentation
@@ -73,6 +106,15 @@ cd percolation-phase-transition
 pip install -r requirements.txt
 ```
 
+**Run the full analysis (phase-transition plot + power-law distribution):**
+
+```bash
+python main.py
+```
+
+This saves `phase_transition.png` (order-parameter sweep) and `power_law.png` (log-log cluster-size
+distribution at $p_c$ with fitted Fisher exponent $\tau$).
+
 **Minimal Python example:**
 
 ```python
@@ -89,6 +131,25 @@ from src.pcg32_personal import clock_seed, PCG32
 
 rng = PCG32(clock_seed())
 print([rng.random() for _ in range(5)])
+```
+
+**Estimate the fractal dimension from simulation data:**
+
+```python
+import numpy as np
+from src.theory import calculate_fractal_dimension
+
+Ls = np.array([100, 200, 400], dtype=float)
+L1s = np.array([500, 1800, 6500], dtype=float)  # largest-cluster sizes at p_c
+df = calculate_fractal_dimension(L1s, Ls)
+```
+
+**Validate the correlation-length exponent ν via finite-size scaling:**
+
+```python
+from src.validation import check_critical_exponents
+
+nu = check_critical_exponents(L_values=(50, 100, 200), n_samples=10)
 ```
 
 **Launch the notebook:**
