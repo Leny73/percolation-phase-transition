@@ -86,6 +86,8 @@ strongest visual evidence that the simulation sits exactly at the phase transiti
 │   ├── theory.py               # Fractal-dimension estimation via log-log regression
 │   └── validation.py           # Critical-exponent (ν) validation via FSS
 ├── notebooks/                  # Colab/Jupyter research & visualisation
+├── scripts/                    # Reproducible experiment/validation runners
+│   └── validate_exponents.py   # p_c, d_f, τ, ν baseline checks
 ├── tests/                      # Automated unit tests
 ├── README.md                   # Documentation
 └── requirements.txt            # Dependency manifest
@@ -104,6 +106,14 @@ cd percolation-phase-transition
 
 ```bash
 pip install -r requirements.txt
+```
+
+**Windows (PowerShell) local environment setup:**
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install -r requirements.txt
 ```
 
 **Run the full analysis (phase-transition plot + power-law distribution):**
@@ -164,7 +174,39 @@ jupyter notebook notebooks/percolation_analysis.ipynb
 pytest tests/
 ```
 
-## 6. License
+**Run reproducible validation experiments (new):**
+
+```bash
+python scripts/validate_exponents.py
+```
+
+Quick smoke run (faster, fewer samples):
+
+```bash
+python scripts/validate_exponents.py --quick
+```
+
+On Windows terminals that are not UTF-8 by default, this script auto-configures stdout encoding
+to avoid Unicode print issues.
+
+## 6. Local Validation Snapshot (2026-03-04)
+
+Executed locally in this workspace with the project virtual environment.
+
+* **Test suite:** `84 passed`.
+* **Entrypoint execution:** `main.py` completed and generated `phase_transition.png` and
+  `power_law.png`.
+* **Critical threshold estimate:** from $\langle L_2 \rangle$ peak,
+  $p_c \approx 0.59167$ (theory: $0.59274605$).
+* **Fractal dimension:** $d_f \approx 1.8472$ (theory: $91/48 \approx 1.8958$).
+* **Fisher exponent:** $\tau \approx 1.9233$ with strong linearity in log-log fit
+  ($R^2 \approx 0.9966$), theory $\tau = 187/91 \approx 2.0549$.
+* **Correlation-length exponent:** $\nu \approx 1.2926$ (theory: $4/3 \approx 1.3333$).
+
+These deviations are expected for finite lattice sizes and limited Monte Carlo averaging; increasing
+system size and sample count improves agreement with theory.
+
+## 7. License
 
 Distributed under the MIT License. See [LICENSE](LICENSE) for more information.
 
